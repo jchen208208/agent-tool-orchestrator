@@ -1,0 +1,7 @@
+# Local Claude Code instructions and settings (not part of the submission)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# Secrets
+.env
