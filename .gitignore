@@ -5,3 +5,6 @@ CLAUDE.local.md
 
 # Secrets
 .env
+
+# Shared working state between Claude sessions (not part of the submission)
+STATE.md
