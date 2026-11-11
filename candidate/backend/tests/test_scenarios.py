@@ -1,7 +1,7 @@
 """Live scenarios run the way the grader runs them: reset -> /chat -> check tool_calls, /state and the reply.
 
 Uses the real OpenAI model, so it's skipped without OPENAI_API_KEY. Prints a scorecard at the end.
-Run a subset with SCENARIOS=s01,s04 to save API calls.
+Run a subset with SCENARIOS=s01,s04 to save API calls. SCENARIO_PAUSE_S=20 spaces them out for low RPM limits.
 """
 
 from __future__ import annotations
@@ -270,9 +270,12 @@ class LiveScenarioTests(unittest.TestCase):
     def test_scenarios(self) -> None:
         wanted = {x.strip() for x in os.getenv("SCENARIOS", "").split(",") if x.strip()}
         chosen = [s for s in SCENARIOS if not wanted or s.id.split("_")[0] in wanted or s.id in wanted]
+        pause = float(os.getenv("SCENARIO_PAUSE_S", "0"))  # spacing for low requests-per-minute keys
         client = TestClient(app)
         outcomes = []
-        for s in chosen:
+        for i, s in enumerate(chosen):
+            if i and pause:
+                time.sleep(pause)
             outcome = run_scenario(client, s)
             outcomes.append(outcome)
             with self.subTest(scenario=s.id):

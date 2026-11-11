@@ -35,7 +35,6 @@ MAX_ROUTED_TOOLS = 12
 
 # loop limits
 MAX_ROUNDS = 8  # model calls per /chat request
-MAX_PARALLEL_TOOLS = 8
 TOOL_RESULT_MAX_CHARS = 20_000  # what the model sees, the log always keeps the full string
 
 # mock time
