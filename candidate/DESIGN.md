@@ -6,18 +6,6 @@ Loom walkthrough: TODO (link, sharing set to anyone with the link)
 
 `POST /chat` routes the conversation to a short list of tools with one cheap LLM call, then runs a hand-written loop where the model calls those tools until it can answer. Every real tool call goes into `tool_calls`.
 
-```mermaid
-flowchart TD
-    A[POST /chat<br/>messages] --> B[Router<br/>1 LLM call over a compact catalog]
-    B -->|up to 12 tool names| C[Agent loop<br/>max 8 model calls]
-    C --> D{Model reply}
-    D -->|tool calls| E[Validate + run tools<br/>batched, in order]
-    E -->|results or errors| C
-    D -->|search_tools| F[Re-run router on the<br/>model's description,<br/>add tools to its list]
-    F --> C
-    D -->|text answer| G[ChatResponse<br/>messages + tool_calls]
-```
-
 ## Tool routing
 
 All 191 schemas come to about 44k tokens (measured through the API). Sending them every call is slow and costly, and tool choice gets worse with a list that long.
