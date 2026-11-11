@@ -13,7 +13,6 @@ from backend.helpers.router import route
 
 log = logging.getLogger("backend.solution")
 
-# uvicorn only sets up its own loggers, so give ours a handler to print the trace in the server console
 _backend_log = logging.getLogger("backend")
 if not _backend_log.handlers:
     _handler = logging.StreamHandler()
@@ -24,12 +23,10 @@ if not _backend_log.handlers:
 
 @lru_cache(maxsize=1)
 def _client() -> OpenAI:
-    # made on the first request, not at import, so the server boots without a key
     return OpenAI(timeout=LLM_TIMEOUT_S, max_retries=LLM_MAX_RETRIES)
 
 
 def chat(request: ChatRequest) -> ChatResponse:
-    """POST /chat: route to a tool shortlist, run the agent loop, return the reply + every tool call made."""
     start = time.perf_counter()
     messages = request.messages
 

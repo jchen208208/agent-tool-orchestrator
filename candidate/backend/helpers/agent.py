@@ -1,5 +1,3 @@
-"""The orchestration loop: ask the model, run the tools it asks for, feed the results back, repeat."""
-
 from __future__ import annotations
 
 import json
@@ -20,7 +18,6 @@ log = logging.getLogger(__name__)
 
 SEARCH_TOOLS = "search_tools"
 
-# meta-tool for when the router missed something. it's ours, not a registered tool, so it never goes in tool_calls
 SEARCH_TOOLS_SCHEMA = {
     "type": "function",
     "name": SEARCH_TOOLS,
@@ -41,15 +38,14 @@ SEARCH_TOOLS_SCHEMA = {
 @dataclass
 class AgentResult:
     reply: str = ""
-    tool_calls: list[ToolCallLog] = field(default_factory=list)  # what the grader sees
-    trace: list[dict] = field(default_factory=list)  # our debug log: every round, call, search and timing
+    tool_calls: list[ToolCallLog] = field(default_factory=list)
+    trace: list[dict] = field(default_factory=list)
 
 
 def run_agent(messages: list[ChatMessage], tool_names: list[str], client) -> AgentResult:
-    """Runs the loop until the model answers in text or MAX_ROUNDS is hit."""
     out = AgentResult()
-    active = list(tool_names)  # tools the model can see; search_tools can add more
-    seen: set[str] = set()  # exact calls already made this turn
+    active = list(tool_names)
+    seen: set[str] = set()
     items = to_responses_input(messages)
 
     for round_no in range(1, MAX_ROUNDS + 1):
@@ -62,14 +58,14 @@ def run_agent(messages: list[ChatMessage], tool_names: list[str], client) -> Age
                 instructions=AGENT_PROMPT,
                 input=items,
                 tools=_tool_schemas(active),
-                tool_choice="none" if last_round else "auto",  # last round: force a text answer
+                tool_choice="none" if last_round else "auto",
                 parallel_tool_calls=True,
                 temperature=0,
             )
         except Exception:
             log.exception("agent model call failed")
             out.reply = "Sorry, I couldn't reach the language model, so I couldn't finish this request."
-            return out  # still return whatever tool calls already ran
+            return out
 
         calls = [item for item in response.output if item.type == "function_call"]
         _trace(out, {"round": round_no, "ms": _ms(start), **_usage(response), "calls": [c.name for c in calls]})
@@ -78,26 +74,21 @@ def run_agent(messages: list[ChatMessage], tool_names: list[str], client) -> Age
             out.reply = (response.output_text or "").strip() or "Sorry, I couldn't come up with an answer."
             return out
 
-        # echo the calls back first, then one output per call_id (same shape as OpenAI's docs)
         for call in calls:
             items.append({"type": "function_call", "call_id": call.call_id, "name": call.name, "arguments": call.arguments})
-        # run in order on one thread: the mocks share state with no locks, and they take ms anyway
         for call in calls:
             output = _handle_call(call, active, seen, out, client)
             items.append({"type": "function_call_output", "call_id": call.call_id, "output": output})
 
-    # only reached if the model ignores tool_choice="none" on the last round
     out.reply = f"I stopped after {MAX_ROUNDS} steps without finishing. Nothing beyond the tool calls listed was done."
     return out
 
 
 def _handle_call(call, active: list[str], seen: set[str], out: AgentResult, client) -> str:
-    """Runs one function call from the model. Returns the text the model sees as that call's output."""
     try:
         raw_args = json.loads(call.arguments or "{}")
     except json.JSONDecodeError as e:
         return _error(f"Arguments were not valid JSON: {e}")
-    # strict mode makes the model send null for every optional arg it doesn't use; drop them so the tool's defaults apply
     args = {k: v for k, v in raw_args.items() if v is not None}
 
     if call.name == SEARCH_TOOLS:
@@ -123,21 +114,18 @@ def _handle_call(call, active: list[str], seen: set[str], out: AgentResult, clie
 
 
 def _invoke(name: str, args: dict) -> ToolCallLog:
-    from backend.main import get_tool_spec  # imported here to avoid a circular import with main.py
+    from backend.main import get_tool_spec
 
     try:
-        # invoke() validates args with pydantic (extra=forbid), then calls the mock
         envelope = get_tool_spec(name).invoke(**args)
         return ToolCallLog(name=name, arguments=args, result=envelope.model_dump(mode="json")["result"])
     except ValidationError as e:
         return ToolCallLog(name=name, arguments=args, error=f"Invalid arguments: {e}")
     except Exception as e:
-        # mocks raise on bad input (unknown channel, missing id, ...). the model gets the message and can fix it
         return ToolCallLog(name=name, arguments=args, error=f"{type(e).__name__}: {e}")
 
 
 def _search_tools(need: str, active: list[str], out: AgentResult, client) -> str:
-    # same router as the start of the turn, but on the model's description of what it's missing
     found = route([ChatMessage(role="user", content=need)], client) if need.strip() else []
     added = [n for n in found if n not in active]
     active.extend(added)
@@ -155,7 +143,6 @@ def _search_tools(need: str, active: list[str], out: AgentResult, client) -> str
 def _tool_schemas(names: list[str]) -> list[dict]:
     from backend.main import get_openai_tools
 
-    # careful: get_openai_tools([]) returns all 191 tools, so only call it with a non-empty list
     return (get_openai_tools(names) if names else []) + [SEARCH_TOOLS_SCHEMA]
 
 
@@ -164,7 +151,6 @@ def _error(message: str) -> str:
 
 
 def _truncate(text: str) -> str:
-    # only trims what the model reads; tool_calls keeps the full result
     if len(text) <= TOOL_RESULT_MAX_CHARS:
         return text
     return text[:TOOL_RESULT_MAX_CHARS] + f"... [truncated, {len(text)} chars total]"

@@ -1,5 +1,3 @@
-"""Unit tests for the agent loop, using a scripted fake LLM (no API key needed)."""
-
 from __future__ import annotations
 
 import json
@@ -27,7 +25,6 @@ def reply(*calls: NS, text: str = "") -> NS:
 
 
 class FakeClient:
-    """Stands in for OpenAI(): returns the scripted responses in order and records every request."""
 
     def __init__(self, script: list) -> None:
         self.script = list(script)
@@ -56,7 +53,6 @@ class AgentLoopTests(unittest.TestCase):
         result = agent.run_agent(USER, [], fake)
         self.assertEqual(result.reply, "Hi!")
         self.assertEqual(result.tool_calls, [])
-        # no routed tools: only search_tools is offered, never all 191
         self.assertEqual([t["name"] for t in fake.requests[0]["tools"]], ["search_tools"])
 
     def test_batched_calls_run_and_errors_go_back_to_model(self) -> None:
@@ -70,7 +66,7 @@ class AgentLoopTests(unittest.TestCase):
         result = agent.run_agent(USER, ["slack_list_conversations", "slack_send_message"], fake)
 
         self.assertEqual([c.name for c in result.tool_calls], ["slack_list_conversations", "slack_send_message"])
-        self.assertEqual(result.tool_calls[0].arguments, {})  # null optional dropped
+        self.assertEqual(result.tool_calls[0].arguments, {})
         self.assertIsNotNone(result.tool_calls[0].result)
         self.assertIn("Unknown Slack channel", result.tool_calls[1].error)
         self.assertIsNone(result.tool_calls[1].result)
@@ -98,14 +94,14 @@ class AgentLoopTests(unittest.TestCase):
     def test_search_tools_adds_missing_tool(self) -> None:
         fake = FakeClient([
             reply(call("search_tools", {"need": "list my Slack conversations"}, "c1")),
-            NS(output_text=json.dumps({"tools": ["slack_list_conversations"]})),  # the router re-run
+            NS(output_text=json.dumps({"tools": ["slack_list_conversations"]})),
             reply(call("slack_list_conversations", {}, "c2")),
             reply(text="done"),
         ])
         result = agent.run_agent(USER, [], fake)
 
         self.assertEqual(result.reply, "done")
-        self.assertEqual([c.name for c in result.tool_calls], ["slack_list_conversations"])  # search_tools not logged
+        self.assertEqual([c.name for c in result.tool_calls], ["slack_list_conversations"])
         self.assertEqual(fake.requests[1]["input"][0]["content"], "list my Slack conversations")
         self.assertEqual(outputs(fake.requests[2])[0]["now_available"][0]["name"], "slack_list_conversations")
         self.assertIn("slack_list_conversations", [t["name"] for t in fake.requests[2]["tools"]])
@@ -138,10 +134,9 @@ class AgentLoopTests(unittest.TestCase):
             "model not found", response=httpx.Response(404, request=httpx.Request("POST", "https://x")), body=None
         )
         fake = FakeClient([not_found, reply(text="first"), reply(text="second")])
-        with mock.patch.object(agent, "AGENT_MODEL", "some-new-model"):  # independent of OPENAI_MODEL in .env
+        with mock.patch.object(agent, "AGENT_MODEL", "some-new-model"):
             self.assertEqual(agent.run_agent(USER, [], fake).reply, "first")
             self.assertEqual(agent.run_agent(USER, [], fake).reply, "second")
-        # one failed try on the configured model, then the fallback straight away from then on
         self.assertEqual([r["model"] for r in fake.requests], ["some-new-model", FALLBACK_MODEL, FALLBACK_MODEL])
 
 

@@ -1,5 +1,3 @@
-"""Tool router: one cheap LLM call picks which tools the agent gets to see."""
-
 from __future__ import annotations
 
 import json
@@ -15,7 +13,6 @@ from backend.helpers.prompts import ROUTER_PROMPT
 
 log = logging.getLogger(__name__)
 
-# each service's main search/list tool. github is left out (86 tools, no single main one)
 SERVICE_ANCHORS = {
     "GMAIL_": "GMAIL_FETCH_EMAILS",
     "GOOGLECALENDAR_": "GOOGLECALENDAR_EVENTS_LIST",
@@ -27,21 +24,19 @@ SERVICE_ANCHORS = {
 
 @lru_cache(maxsize=1)
 def tool_names() -> tuple[str, ...]:
-    from backend.main import list_available_tools  # imported here to avoid a circular import with main.py
+    from backend.main import list_available_tools
 
     return tuple(list_available_tools())
 
 
 @lru_cache(maxsize=1)
 def compact_catalog() -> str:
-    # one line per tool: ~13k chars (~4k tokens) vs ~72k tokens for the full schemas
     from backend.main import get_all_tool_specs
 
     return "\n".join(f"{name}: {spec.description}" for name, spec in sorted(get_all_tool_specs().items()))
 
 
 def _output_schema() -> dict:
-    # enum = the model can only return real tool names
     return {
         "type": "json_schema",
         "name": "routed_tools",
@@ -58,13 +53,11 @@ def _output_schema() -> dict:
 
 
 def route(messages: list[ChatMessage], client) -> list[str]:
-    """Returns up to MAX_ROUTED_TOOLS tool names for this conversation. [] if none needed or the call fails."""
     start = time.perf_counter()
     try:
         response = create_response(
             client,
             ROUTER_MODEL,
-            # catalog goes in the instructions so the prefix is identical every call (OpenAI caches it automatically)
             instructions=f"{ROUTER_PROMPT}\n\nCatalog:\n{compact_catalog()}",
             input=to_responses_input(messages),
             text={"format": _output_schema()},
@@ -72,19 +65,16 @@ def route(messages: list[ChatMessage], client) -> list[str]:
         )
         picked = json.loads(response.output_text)["tools"]
     except Exception:
-        # don't fail the request: the agent can still answer directly or call search_tools
         log.exception("router call failed")
         return []
 
     valid = set(tool_names())
-    names = list(dict.fromkeys(n for n in picked if n in valid))[:MAX_ROUTED_TOOLS]  # dedupe, keep order
+    names = list(dict.fromkeys(n for n in picked if n in valid))[:MAX_ROUTED_TOOLS]
     names = with_anchors(names)
     log.info("router picked %s in %.0f ms", names, (time.perf_counter() - start) * 1000)
     return names
 
 
 def with_anchors(names: list[str]) -> list[str]:
-    """Adds the main search/list tool of every service the router touched, if it's missing."""
-    # enforced in code because the router prompt asks for this but small models sometimes skip it
     extra = [a for prefix, a in SERVICE_ANCHORS.items() if a not in names and any(n.startswith(prefix) for n in names)]
     return names + extra

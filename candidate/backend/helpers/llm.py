@@ -1,5 +1,3 @@
-"""One place to call the model, with a fallback if the configured model isn't available on this key."""
-
 from __future__ import annotations
 
 import logging
@@ -10,11 +8,10 @@ from backend.helpers.config import FALLBACK_MODEL
 
 log = logging.getLogger(__name__)
 
-_unavailable: set[str] = set()  # models this key can't use; remembered for the life of the server
+_unavailable: set[str] = set()
 
 
 def create_response(client, model: str, **kwargs):
-    """client.responses.create, but switches to FALLBACK_MODEL if `model` 404s/403s (not on this key)."""
     if model in _unavailable:
         model = FALLBACK_MODEL
     try:

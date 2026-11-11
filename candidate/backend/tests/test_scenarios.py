@@ -1,9 +1,3 @@
-"""Live scenarios run the way the grader runs them: reset -> /chat -> check tool_calls, /state and the reply.
-
-Uses the real OpenAI model (costs requests), so it only runs with RUN_LIVE=1 and a key. Prints a scorecard at the end.
-Run a subset with SCENARIOS=s01,s04 to save API calls. SCENARIO_PAUSE_S=20 spaces them out for low RPM limits.
-"""
-
 from __future__ import annotations
 
 import json
@@ -16,27 +10,25 @@ from typing import Callable
 
 from fastapi.testclient import TestClient
 
-from backend.helpers import config  # noqa: F401  (loads .env so the key check below works)
+from backend.helpers import config
 from backend.main import app
 
-Check = Callable[[dict, dict, str], "str | None"]  # (state before, state after, reply) -> problem or None
+Check = Callable[[dict, dict, str], "str | None"]
 
 
 @dataclass
 class Scenario:
     id: str
     messages: list[dict]
-    required: list[tuple[str, ...]] = field(default_factory=list)  # each tuple: at least one of these must be called
+    required: list[tuple[str, ...]] = field(default_factory=list)
     forbidden: set[str] = field(default_factory=set)
-    min_calls: int = 0  # fewest tool calls the task needs (for the efficiency stat, not pass/fail)
+    min_calls: int = 0
     checks: list[Check] = field(default_factory=list)
 
 
 def user(text: str) -> list[dict]:
     return [{"role": "user", "content": text}]
 
-
-# ---- state helpers ----
 
 def slack_texts(state: dict, channel: str) -> list[str]:
     for c in state["slack"]["channel_messages"]:
@@ -103,7 +95,7 @@ def new_linear_issue(title_words: str, team_prefix: str) -> Check:
         hits = [i for i in added if title_words.lower() in i.get("title", "").lower()]
         if not hits:
             return f"no new Linear issue titled like '{title_words}'"
-        if not str(hits[0]["id"]).startswith(team_prefix):  # linear mock ids look like ENG-6
+        if not str(hits[0]["id"]).startswith(team_prefix):
             return f"issue created in the wrong team: {hits[0]['id']}"
         return None
     return check
@@ -127,14 +119,11 @@ def new_gmail_draft_to(address: str) -> Check:
     return check
 
 
-# ---- scenarios (built from the seed data in the mocks) ----
-
 WRITE_TOOLS = {"slack_send_message", "GOOGLECALENDAR_CREATE_EVENT", "GOOGLECALENDAR_QUICK_ADD", "GMAIL_CREATE_EMAIL_DRAFT"}
 DRIVE_WRITES = {"GOOGLEDRIVE_DELETE_DRIVE", "GOOGLEDRIVE_DELETE_PERMISSION", "GOOGLEDRIVE_EMPTY_TRASH", "GOOGLEDRIVE_EDIT_FILE",
                 "GOOGLEDRIVE_DELETE_COMMENT", "GOOGLEDRIVE_DELETE_REPLY"}
 
 SCENARIOS = [
-    # single service, single tool
     Scenario("s01_slack_list_conversations", user("What conversations do I have in Slack?"),
              required=[("slack_list_conversations",)], min_calls=1,
              checks=[reply_mentions("engineering")]),
@@ -150,16 +139,15 @@ SCENARIOS = [
     Scenario("s05_perplexity", user("Search the web for recent news about AI agent frameworks."),
              required=[("perplexity_search",)], min_calls=1),
 
-    # cross-service and multi-step
     Scenario("s06_email_to_slack",
              user("Find the most recent email about the Q1 revenue review and post a summary to the leadership Slack channel."),
-             required=[("GMAIL_FETCH_EMAILS", "GMAIL_LIST_THREADS"), ("slack_send_message",)], min_calls=3,  # fetch, find channel id, post
+             required=[("GMAIL_FETCH_EMAILS", "GMAIL_LIST_THREADS"), ("slack_send_message",)], min_calls=3,
              checks=[slack_post("C002")]),
     Scenario("s07_thread_lookup", user("Who owns the launch rollback checklist? It was discussed in #engineering."),
              required=[("slack_get_thread", "slack_conversations_history", "slack_search_messages", "slack_get_full_conversation")],
              min_calls=2, checks=[reply_mentions("Jordan")]),
     Scenario("s08_linear_create_issue", user("Create a Linear issue in the Engineering team titled 'Fix router timeout'."),
-             required=[("linear_create_issue",)], min_calls=2,  # team id lookup + create
+             required=[("linear_create_issue",)], min_calls=2,
              checks=[new_linear_issue("Fix router timeout", "ENG")]),
     Scenario("s09_linear_comment", user("Find the Linear issue about the launch delay and comment 'Looking into this today' on it."),
              required=[("linear_create_comment",)], min_calls=2,
@@ -171,14 +159,12 @@ SCENARIOS = [
              required=[("GMAIL_FETCH_EMAILS", "GMAIL_LIST_THREADS"), ("GOOGLECALENDAR_EVENTS_LIST", "GOOGLECALENDAR_FIND_EVENT")],
              min_calls=2, checks=[reply_mentions("Deep work")]),
 
-    # conversation state
     Scenario("s12_follow_up_turn", [
         {"role": "user", "content": "What conversations do I have in Slack?"},
         {"role": "assistant", "content": "You have #engineering, #leadership-private, a DM with Avery and Morgan, and #launch-war-room."},
         {"role": "user", "content": "Post 'Standup moved to 10am' in the first one."},
-    ], required=[("slack_send_message",)], min_calls=2, checks=[slack_post("C001", "10am")]),  # needs the channel id first
+    ], required=[("slack_send_message",)], min_calls=2, checks=[slack_post("C001", "10am")]),
 
-    # ambiguity, errors, no tool
     Scenario("s13_ambiguous_meeting", user("Schedule a 30-minute meeting with everyone on the project next week."),
              forbidden={"GOOGLECALENDAR_CREATE_EVENT", "GOOGLECALENDAR_QUICK_ADD"},
              checks=[no_new_calendar_events, asks_question]),
@@ -192,7 +178,7 @@ SCENARIOS = [
     Scenario("s17_out_of_scope", user("Order me a large pepperoni pizza for delivery."), forbidden=WRITE_TOOLS,
              checks=[no_new_slack_messages]),
 ]
-NO_TOOLS = {"s16_greeting", "s17_out_of_scope"}  # these must make zero tool calls
+NO_TOOLS = {"s16_greeting", "s17_out_of_scope"}
 
 
 @dataclass
@@ -248,7 +234,7 @@ def run_scenario(client: TestClient, s: Scenario) -> Outcome:
 def print_scorecard(outcomes: list[Outcome]) -> None:
     print("\n" + "=" * 70)
     for o in outcomes:
-        mark = "PASS" if o.ok else "FAIL"  # ascii: windows consoles (cp1252) can't print check marks
+        mark = "PASS" if o.ok else "FAIL"
         line = f"  {mark}  [{o.id}]  {o.ms:>6} ms  ({o.calls}/{o.min_calls} calls)"
         print(line + (f" - {o.problems[0]}" if o.problems else ""))
         for extra in o.problems[1:]:
@@ -270,7 +256,7 @@ class LiveScenarioTests(unittest.TestCase):
     def test_scenarios(self) -> None:
         wanted = {x.strip() for x in os.getenv("SCENARIOS", "").split(",") if x.strip()}
         chosen = [s for s in SCENARIOS if not wanted or s.id.split("_")[0] in wanted or s.id in wanted]
-        pause = float(os.getenv("SCENARIO_PAUSE_S", "0"))  # spacing for low requests-per-minute keys
+        pause = float(os.getenv("SCENARIO_PAUSE_S", "0"))
         client = TestClient(app)
         outcomes = []
         for i, s in enumerate(chosen):

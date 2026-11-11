@@ -1,5 +1,3 @@
-"""prompts for the router and the agent loop"""
-
 from __future__ import annotations
 
 from backend.helpers.config import MAX_ROUTED_TOOLS, NOW_TEXT
