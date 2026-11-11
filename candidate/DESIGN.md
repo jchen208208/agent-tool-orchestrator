@@ -20,9 +20,9 @@ All 191 schemas come to about 44k tokens (measured through the API). Sending the
 
 I picked C. The router sees the conversation plus one line per tool and returns up to 12 names, about 10x fewer tokens than every schema. Its output enum is the 191 real names, so it can't make up a tool. The catalog sits in the instructions, so the prompt cache served about 95% of its input. I chose it over E because routing can be tested by itself. The cap of 12 is a judgment call: most tasks need 2 to 5 tools, and 12 schemas are only about 2.7k tokens.
 
-If the router misses a tool, the agent calls `search_tools` with a description ("send a message to a Slack channel"), which goes back through the router and adds tools for the next round. A `load_tools(names)` version wouldn't work, since the model can't know names it never saw. It recovered a missed Slack lookup twice in live tests, and it's traced but never logged in `tool_calls`.
+If the router misses a tool, the agent calls `search_tools` with a description ("send a message to a Slack channel"), which goes back through the router and adds tools for the next round. A `load_tools(names)` version wouldn't work, since the model can't know names it never saw. It recovered a missed Slack lookup twice in live tests, and it's traced but never logged in `tool_calls`. OpenAI's native tool search (deferred tool loading) does the same thing, but it only works on gpt-5.4 and newer, and `.env.example` uses gpt-4.1-mini.
 
-Live tests also showed quiet misses: a similar tool returns the wrong data (your own profile instead of your contacts) and the model accepts it. The router now always includes each touched service's main search tool, and the agent tries another tool when a result lacks what it needs. That fixed two scenarios, but a weak router model still ignored the rule once.
+Live tests also showed quiet misses: a similar tool returns the wrong data (your own profile instead of your contacts) and the model accepts it. The agent prompt says to try another tool when a result lacks what it needs, and the router prompt asks for each touched service's main search tool. That fixed two scenarios, but a weak router model ignored the router rule, so the code now adds that tool itself (OpenAI's tool search guide gives the same advice: keep core tools loaded, defer the rest). In the one failing scenario the right tool is now available, but the agent still reads a total message count as the unread count.
 
 ## Orchestration loop
 
@@ -35,13 +35,17 @@ Live tests also showed quiet misses: a similar tool returns the wrong data (your
 
 ## Testing and trade-offs
 
-There are 9 unit tests against a fake LLM and 17 live scenarios run like the grader (reset, `/chat`, check tools, `/state` and the reply). 16 of 17 pass, at a median of about 5 s per request, on `gpt-4o-mini` and `gpt-5.4-mini`/`nano` because of free-tier limits. TODO: full run on `gpt-4.1-mini`, which `.env.example` sets.
+There are 12 unit tests against a fake LLM and 17 live scenarios run like the grader (reset, `/chat`, check tools, `/state` and the reply). 16 of 17 pass, at a median of about 5 s per request, on `gpt-4o-mini` and `gpt-5.4-mini`/`nano` because of free-tier limits. TODO: full run on `gpt-4.1-mini`, which `.env.example` sets.
 
 The main trade-off: the router adds a call and 1 to 2 s to every request, even greetings, for much smaller prompts and testable routing.
 
+I also looked at open-source harnesses like LangChain's deepagents. Their todo lists, subagents, summarization and "check your work" passes are built for long tasks. Here each extra LLM round adds latency that gets scored, so I left them out.
+
 ## With another 8 hours
 
-- Enforce each touched service's search tool in code, and test that the agent reads results correctly (the failing scenario reads a total count as unread).
+- Test that the agent reads results correctly (the failing scenario reads a total count as unread).
+- Put fix-it hints in tool error messages, since models act on those more than on the system prompt.
+- Switch `search_tools` to OpenAI's native tool search once the model is gpt-5.4 or newer.
 - Measure router recall at caps of 8, 12 and 16, and compare C against E.
 - Run the scenario suite in CI on the grader's model.
 - Cache router picks for repeated requests.
