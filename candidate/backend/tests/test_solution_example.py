@@ -10,7 +10,6 @@ class SolutionExampleTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
 
-    @unittest.skip("Example: remove this line after implementing POST /chat")
     def test_greeting_returns_an_assistant_message_without_tools(self) -> None:
         response = self.client.post(
             "/chat",

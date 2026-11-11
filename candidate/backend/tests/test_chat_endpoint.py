@@ -26,14 +26,6 @@ class ChatEndpointTests(unittest.TestCase):
         response = self.client.post("/chat", json={"messages": "nope"})
         self.assertEqual(response.status_code, 422)
 
-    def test_chat_endpoint_returns_501_until_implemented(self) -> None:
-        # Candidates: delete this assertion once you implement /chat.
-        response = self.client.post(
-            "/chat",
-            json={"messages": [{"role": "user", "content": "hi"}]},
-        )
-        self.assertEqual(response.status_code, 501)
-
 
 if __name__ == "__main__":
     unittest.main()
