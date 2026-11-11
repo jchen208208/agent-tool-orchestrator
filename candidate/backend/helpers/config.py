@@ -10,9 +10,9 @@ from backend.googlecalendar_mock.state import BASE_NOW
 
 def _load_dotenv() -> None:
     # nothing in the scaffolding loads .env and we can't add python-dotenv, so parse it ourselves.
-    # real env vars win over the file (setdefault).
+    # real env vars win over the file (setdefault). the parent folder is checked too so the key can live outside the submission zip.
     candidate_dir = Path(__file__).resolve().parents[2]
-    for path in (candidate_dir / ".env", candidate_dir / "backend" / ".env"):
+    for path in (candidate_dir / ".env", candidate_dir / "backend" / ".env", candidate_dir.parent / ".env"):
         if not path.is_file():
             continue
         for line in path.read_text(encoding="utf-8").splitlines():

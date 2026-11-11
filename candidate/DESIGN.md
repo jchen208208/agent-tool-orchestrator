@@ -56,6 +56,8 @@ All 191 schemas come to about 72k tokens. Sending them on every call is slow and
 
 I picked **C**, with `load_tools` from E as a safety net. The router reads the whole conversation, so follow-ups like "do the same for the other channel" still route correctly. It's told to think through the full task, including lookups (to post to a channel by name you first need its ID), and to include both tools when unsure, because a missing tool costs more than an extra one.
 
+The router's output uses a strict JSON schema whose `enum` is the list of the 191 real tool names, so it can't make up a tool name. The code still filters against the registry anyway. The catalog goes in the instructions, so the start of the prompt is identical on every call and OpenAI's automatic prompt caching can reuse it. If the router call fails, it returns an empty list and the request carries on instead of erroring.
+
 If the router misses something, the main model can call `load_tools` with exact names, and those schemas get added for the next round. That costs one extra round, but the request still works.
 
 I went with a separate router over E mainly because I can test it by itself (did the router pick the tools each scenario needed?), it does one focused job, and it keeps the main model's context small. I haven't measured C against E yet. TODO: compare them if there's time and put the numbers here.
@@ -81,7 +83,7 @@ I went with a separate router over E mainly because I can test it by itself (did
 
 ## Trade-offs
 
-- **Latency vs. accuracy.** The router adds one LLM call to every request, including greetings. I accepted that for better tool choice and a much smaller main prompt. TODO: measured router latency.
+- **Latency vs. accuracy.** The router adds one LLM call to every request, including greetings. I accepted that for better tool choice and a much smaller main prompt. In a first live run on the README examples with `gpt-4.1-mini`, the router took 1.4 to 4.7 s per call (the first call is slowest). TODO: re-measure over the full scenario set.
 - **Cost.** A router call costs about 5k tokens, compared with about 72k for sending every schema on each round. Multi-round tasks save more.
 - **Observability.** Every call is in `tool_calls` with its arguments, result and error. TODO: describe the trace/logging (latency per step, router picks).
 - **Maintainability.** Prompts, limits and model names live in `config.py` and `prompts.py`. Adding a tool to the registry needs no routing code changes, because the catalog is built from the registry.
