@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from backend.chat_schema import ChatMessage, ToolCallLog
 from backend.helpers.config import AGENT_MODEL, MAX_ROUNDS, TOOL_RESULT_MAX_CHARS
+from backend.helpers.llm import create_response
 from backend.helpers.messages import to_responses_input
 from backend.helpers.prompts import AGENT_PROMPT
 from backend.helpers.router import route
@@ -55,8 +56,9 @@ def run_agent(messages: list[ChatMessage], tool_names: list[str], client) -> Age
         last_round = round_no == MAX_ROUNDS
         start = time.perf_counter()
         try:
-            response = client.responses.create(
-                model=AGENT_MODEL,
+            response = create_response(
+                client,
+                AGENT_MODEL,
                 instructions=AGENT_PROMPT,
                 input=items,
                 tools=_tool_schemas(active),

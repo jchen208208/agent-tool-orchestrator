@@ -1,6 +1,6 @@
 """Live scenarios run the way the grader runs them: reset -> /chat -> check tool_calls, /state and the reply.
 
-Uses the real OpenAI model, so it's skipped without OPENAI_API_KEY. Prints a scorecard at the end.
+Uses the real OpenAI model (costs requests), so it only runs with RUN_LIVE=1 and a key. Prints a scorecard at the end.
 Run a subset with SCENARIOS=s01,s04 to save API calls. SCENARIO_PAUSE_S=20 spaces them out for low RPM limits.
 """
 
@@ -265,7 +265,7 @@ def print_scorecard(outcomes: list[Outcome]) -> None:
     print("=" * 70)
 
 
-@unittest.skipUnless(os.getenv("OPENAI_API_KEY"), "live scenarios need OPENAI_API_KEY")
+@unittest.skipUnless(os.getenv("OPENAI_API_KEY") and os.getenv("RUN_LIVE"), "live scenarios: set RUN_LIVE=1 (needs OPENAI_API_KEY)")
 class LiveScenarioTests(unittest.TestCase):
     def test_scenarios(self) -> None:
         wanted = {x.strip() for x in os.getenv("SCENARIOS", "").split(",") if x.strip()}

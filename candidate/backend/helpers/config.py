@@ -23,8 +23,9 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 # models
-AGENT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+AGENT_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 ROUTER_MODEL = os.getenv("ROUTER_MODEL", AGENT_MODEL)
+FALLBACK_MODEL = "gpt-4.1-mini"  # used if this key can't access the models above (404/403)
 
 # OpenAI client
 LLM_TIMEOUT_S = 30.0

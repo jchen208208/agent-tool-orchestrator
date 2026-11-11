@@ -7,8 +7,12 @@ import unittest
 from types import SimpleNamespace as NS
 from unittest import mock
 
+import httpx
+import openai
+
 from backend.chat_schema import ChatMessage
-from backend.helpers import agent
+from backend.helpers import agent, llm
+from backend.helpers.config import FALLBACK_MODEL
 from backend.main import reset_all_mock_state
 
 USER = [ChatMessage(role="user", content="test")]
@@ -45,6 +49,7 @@ def outputs(request: dict) -> list[dict]:
 class AgentLoopTests(unittest.TestCase):
     def setUp(self) -> None:
         reset_all_mock_state()
+        llm._unavailable.clear()
 
     def test_text_reply_with_no_tools(self) -> None:
         fake = FakeClient([reply(text="Hi!")])
@@ -127,6 +132,17 @@ class AgentLoopTests(unittest.TestCase):
         result = agent.run_agent(USER, ["slack_list_conversations"], fake)
         self.assertIn("couldn't reach the language model", result.reply)
         self.assertEqual(len(result.tool_calls), 1)
+
+    def test_unavailable_model_falls_back_and_remembers(self) -> None:
+        not_found = openai.NotFoundError(
+            "model not found", response=httpx.Response(404, request=httpx.Request("POST", "https://x")), body=None
+        )
+        fake = FakeClient([not_found, reply(text="first"), reply(text="second")])
+        with mock.patch.object(agent, "AGENT_MODEL", "some-new-model"):  # independent of OPENAI_MODEL in .env
+            self.assertEqual(agent.run_agent(USER, [], fake).reply, "first")
+            self.assertEqual(agent.run_agent(USER, [], fake).reply, "second")
+        # one failed try on the configured model, then the fallback straight away from then on
+        self.assertEqual([r["model"] for r in fake.requests], ["some-new-model", FALLBACK_MODEL, FALLBACK_MODEL])
 
 
 if __name__ == "__main__":

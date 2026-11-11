@@ -32,6 +32,7 @@ Files (all in `backend/`):
 | `helpers/prompts.py` | Router prompt and agent system prompt |
 | `helpers/router.py` | Compact catalog, the shortlist call, name checks |
 | `helpers/agent.py` | The loop |
+| `helpers/llm.py` | One wrapper for model calls, with the fallback model if the configured one isn't available |
 
 ## How a request is handled
 
@@ -107,7 +108,7 @@ I went with a separate router over E mainly because I can test it by itself (did
 
 ## How to run
 
-From `candidate/`, with `OPENAI_API_KEY` in `.env` (optional: `OPENAI_MODEL`, default `gpt-4.1-mini`):
+From `candidate/`, with `OPENAI_API_KEY` in `.env`. `OPENAI_MODEL` picks the model (`.env.example` sets `gpt-4.1-mini`; if it's unset the default is `gpt-5.4-mini`). If the key can't access the chosen model (404/403), it switches to `gpt-4.1-mini` once and remembers that for the rest of the server's life, so a model-access problem costs one fast failed request instead of every request failing. Live scenarios are opt-in: `RUN_LIVE=1`.
 
 ```
 pnpm run dev

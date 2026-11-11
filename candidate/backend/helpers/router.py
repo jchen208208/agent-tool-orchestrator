@@ -9,6 +9,7 @@ from functools import lru_cache
 
 from backend.chat_schema import ChatMessage
 from backend.helpers.config import MAX_ROUTED_TOOLS, ROUTER_MODEL
+from backend.helpers.llm import create_response
 from backend.helpers.messages import to_responses_input
 from backend.helpers.prompts import ROUTER_PROMPT
 
@@ -51,8 +52,9 @@ def route(messages: list[ChatMessage], client) -> list[str]:
     """Returns up to MAX_ROUTED_TOOLS tool names for this conversation. [] if none needed or the call fails."""
     start = time.perf_counter()
     try:
-        response = client.responses.create(
-            model=ROUTER_MODEL,
+        response = create_response(
+            client,
+            ROUTER_MODEL,
             # catalog goes in the instructions so the prefix is identical every call (OpenAI caches it automatically)
             instructions=f"{ROUTER_PROMPT}\n\nCatalog:\n{compact_catalog()}",
             input=to_responses_input(messages),
