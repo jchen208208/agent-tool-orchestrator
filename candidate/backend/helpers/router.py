@@ -61,7 +61,7 @@ def route(messages: list[ChatMessage], client) -> list[str]:
         )
         picked = json.loads(response.output_text)["tools"]
     except Exception:
-        # don't fail the request: the agent can still answer directly or call load_tools
+        # don't fail the request: the agent can still answer directly or call search_tools
         log.exception("router call failed")
         return []
 
