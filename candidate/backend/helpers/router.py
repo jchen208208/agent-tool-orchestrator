@@ -15,6 +15,15 @@ from backend.helpers.prompts import ROUTER_PROMPT
 
 log = logging.getLogger(__name__)
 
+# each service's main search/list tool. github is left out (86 tools, no single main one)
+SERVICE_ANCHORS = {
+    "GMAIL_": "GMAIL_FETCH_EMAILS",
+    "GOOGLECALENDAR_": "GOOGLECALENDAR_EVENTS_LIST",
+    "GOOGLEDRIVE_": "GOOGLEDRIVE_FIND_FILE",
+    "slack_": "slack_list_conversations",
+    "linear_": "linear_list_issues",
+}
+
 
 @lru_cache(maxsize=1)
 def tool_names() -> tuple[str, ...]:
@@ -69,5 +78,13 @@ def route(messages: list[ChatMessage], client) -> list[str]:
 
     valid = set(tool_names())
     names = list(dict.fromkeys(n for n in picked if n in valid))[:MAX_ROUTED_TOOLS]  # dedupe, keep order
+    names = with_anchors(names)
     log.info("router picked %s in %.0f ms", names, (time.perf_counter() - start) * 1000)
     return names
+
+
+def with_anchors(names: list[str]) -> list[str]:
+    """Adds the main search/list tool of every service the router touched, if it's missing."""
+    # enforced in code because the router prompt asks for this but small models sometimes skip it
+    extra = [a for prefix, a in SERVICE_ANCHORS.items() if a not in names and any(n.startswith(prefix) for n in names)]
+    return names + extra

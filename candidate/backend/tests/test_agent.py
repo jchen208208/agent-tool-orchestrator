@@ -11,7 +11,7 @@ import httpx
 import openai
 
 from backend.chat_schema import ChatMessage
-from backend.helpers import agent, llm
+from backend.helpers import agent, llm, router
 from backend.helpers.config import FALLBACK_MODEL
 from backend.main import reset_all_mock_state
 
@@ -143,6 +143,23 @@ class AgentLoopTests(unittest.TestCase):
             self.assertEqual(agent.run_agent(USER, [], fake).reply, "second")
         # one failed try on the configured model, then the fallback straight away from then on
         self.assertEqual([r["model"] for r in fake.requests], ["some-new-model", FALLBACK_MODEL, FALLBACK_MODEL])
+
+
+class RouterAnchorTests(unittest.TestCase):
+    def test_touched_service_gets_its_main_tool(self) -> None:
+        self.assertEqual(
+            router.with_anchors(["GMAIL_GET_PROFILE", "slack_send_message"]),
+            ["GMAIL_GET_PROFILE", "slack_send_message", "GMAIL_FETCH_EMAILS", "slack_list_conversations"],
+        )
+
+    def test_no_tools_and_no_duplicates(self) -> None:
+        self.assertEqual(router.with_anchors([]), [])
+        self.assertEqual(router.with_anchors(["GMAIL_FETCH_EMAILS"]), ["GMAIL_FETCH_EMAILS"])
+        self.assertEqual(router.with_anchors(["github_list_issues"]), ["github_list_issues"])
+
+    def test_route_applies_anchors(self) -> None:
+        fake = FakeClient([NS(output_text=json.dumps({"tools": ["GMAIL_GET_PROFILE"]}))])
+        self.assertEqual(router.route(USER, fake), ["GMAIL_GET_PROFILE", "GMAIL_FETCH_EMAILS"])
 
 
 if __name__ == "__main__":
