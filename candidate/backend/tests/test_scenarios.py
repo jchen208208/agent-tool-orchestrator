@@ -159,7 +159,7 @@ SCENARIOS = [
              required=[("slack_get_thread", "slack_conversations_history", "slack_search_messages", "slack_get_full_conversation")],
              min_calls=2, checks=[reply_mentions("Jordan")]),
     Scenario("s08_linear_create_issue", user("Create a Linear issue in the Engineering team titled 'Fix router timeout'."),
-             required=[("linear_create_issue",)], min_calls=1,
+             required=[("linear_create_issue",)], min_calls=2,  # team id lookup + create
              checks=[new_linear_issue("Fix router timeout", "ENG")]),
     Scenario("s09_linear_comment", user("Find the Linear issue about the launch delay and comment 'Looking into this today' on it."),
              required=[("linear_create_comment",)], min_calls=2,
