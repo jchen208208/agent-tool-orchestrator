@@ -1,5 +1,3 @@
-"""Settings for the orchestrator. Everything tunable lives here."""
-
 from __future__ import annotations
 
 import os
@@ -9,8 +7,7 @@ from backend.googlecalendar_mock.state import BASE_NOW
 
 
 def _load_dotenv() -> None:
-    # nothing in the scaffolding loads .env and we can't add python-dotenv, so parse it ourselves.
-    # real env vars win over the file (setdefault). the parent folder is checked too so the key can live outside the submission zip.
+    # load .env (parent folder too, keeps the key out of the submission zip)
     candidate_dir = Path(__file__).resolve().parents[2]
     for path in (candidate_dir / ".env", candidate_dir / "backend" / ".env", candidate_dir.parent / ".env"):
         if not path.is_file():
@@ -37,10 +34,10 @@ LLM_MAX_RETRIES = 2
 MAX_ROUTED_TOOLS = 12
 
 # loop limits
-MAX_ROUNDS = 8  # model calls per /chat request, not tool calls
-MAX_PARALLEL_TOOLS = 8  # thread pool size for tool calls in one turn
-TOOL_RESULT_MAX_CHARS = 20_000  # what the model sees; the tool_calls log always keeps the full result
+MAX_ROUNDS = 8  # model calls per /chat request
+MAX_PARALLEL_TOOLS = 8
+TOOL_RESULT_MAX_CHARS = 20_000  # what the model sees, the log always keeps the full string
 
-# the mocks are frozen at this time, so "today" / "next week" must resolve against it, not the real clock
+# mock time
 NOW = BASE_NOW
 NOW_TEXT = NOW.strftime("%A, %B %d, %Y %H:%M") + f" ({NOW.tzinfo.key})"
