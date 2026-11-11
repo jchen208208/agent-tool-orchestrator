@@ -1,6 +1,6 @@
 # Design
 
-Loom Video:
+Loom Video: https://www.loom.com/share/cf01ccbf4f444abdbb7a423a6ecf7f2b
 
 ## Abstract
 
