@@ -1,4 +1,4 @@
-"""System prompts for the router and the agent loop."""
+"""prompts for the router and the agent loop"""
 
 from __future__ import annotations
 

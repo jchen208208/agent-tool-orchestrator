@@ -7,7 +7,7 @@ from backend.googlecalendar_mock.state import BASE_NOW
 
 
 def _load_dotenv() -> None:
-    # load .env (parent folder too, keeps the key out of the submission zip)
+    # load .env
     candidate_dir = Path(__file__).resolve().parents[2]
     for path in (candidate_dir / ".env", candidate_dir / "backend" / ".env", candidate_dir.parent / ".env"):
         if not path.is_file():

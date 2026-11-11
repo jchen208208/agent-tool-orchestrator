@@ -1,10 +1,5 @@
-# Local Claude Code instructions and settings (not part of the submission)
+.env
+STATE.md
 CLAUDE.md
 CLAUDE.local.md
 .claude/
-
-# Secrets
-.env
-
-# Shared working state between Claude sessions (not part of the submission)
-STATE.md
