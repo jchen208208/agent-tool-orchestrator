@@ -1,6 +1,6 @@
 # Design
 
-**Loom video:** ADD LINK HERE
+**Loom video:**
 
 ## Abstract
 
